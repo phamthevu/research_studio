@@ -1,0 +1,33 @@
+Research Studio V5.6 Test Report
+================================
+Date: 2026-09-25
+
+CORE / REGRESSION PASS
+- test_project_db_smoke.py
+- test_v47_rules.py
+- test_v48_release.py: 8 method/Z scenarios + legacy guard + Continuous removal
+- test_v50_integrations.py
+- stress_v47.py: MCDM 200 accounts; Quant Free 500; Quant Account 100; merge rules
+- stress_merge_v472.py: Quant 120, Qual 80, MCDM 100, batch 5x30, repeat idempotency
+- stress_v51_sync.py: 10,000 fingerprints; 1,000 no-change cycles; 501 responses; retry/dirty state
+- stress_v52_cdc_scd.py: 10k insert, 1k update, 500 tombstone, 10k SCD2 helper calls
+- stress_v53_email_drive.py: 1,000 email sends + 25,000 mocked Drive uploads
+- stress_v54_connections.py: SMTP auth-only test, 50k two-machine keys, cloud folder, hashes
+
+V5.6 DATABASE MODE STRESS PASS
+- PostgreSQL / SQL Server / MySQL
+- OVERWRITE and APPEND
+- 1,000 simulated sync cycles per DB per mode
+- Total 6,000 sync simulations
+- OVERWRITE verified DELETE scope SQL before insert
+- APPEND verified no DELETE
+
+STATIC QA
+- Full Python compileall: PASS
+- Connection guide DOCX rendered and visually inspected: 7 pages, PASS
+- ZIP integrity checked after packaging
+
+LIMITATIONS
+- Real network authentication to PostgreSQL, SQL Server, MySQL, SMTP, S3, cloud services cannot be certified without the user's actual endpoints, firewall, drivers and credentials.
+- SQL Server requires Microsoft ODBC Driver 18 installed on the Windows host.
+- Some optional Python connector packages were not installed in the build container; requirements.txt includes them for the target environment.
