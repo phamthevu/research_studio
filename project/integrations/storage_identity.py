@@ -19,3 +19,6 @@ def safe_identifier(value: str, fallback='project') -> str:
 def table_names(storage_key: str):
     p=safe_identifier(storage_key)
     return {'runs':f'{p}_runs','responses':f'{p}_responses','values':f'{p}_values'}
+
+def quant_flat_name(storage_key: str):
+    return f"{safe_identifier(storage_key)}_flat"

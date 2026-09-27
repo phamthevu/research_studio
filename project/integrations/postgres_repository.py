@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
-from .snapshot_staging import build_snapshot
-from .storage_identity import table_names, safe_identifier
+from .snapshot_staging import build_snapshot, build_quant_flat_rows
+from .storage_identity import table_names, safe_identifier, quant_flat_name
 from .concurrency import SyncConflictError, should_block_revision
 
 def _utcnow(): return datetime.now(timezone.utc).isoformat(timespec='seconds')
@@ -36,7 +36,7 @@ class PostgreSQLRepository:
     if q.fetchone()[0]:
      q.execute(f'SELECT revision,last_sync_at FROM "{schema}"."rs_projects" WHERE storage_key=%s',(m.get('storage_key'),)); r=q.fetchone()
      if r: remote={'revision':int(r[0]),'last_sync_at':str(r[1]) if r[1] else None}
-  return {'schema':schema,'tables':{k:{'name':f'{schema}.{n}','exists':out[k]} for k,n in t.items()},'registry':remote,'local_revision':m.get('db_remote_revision')}
+  return {'schema':schema,'tables':{k:{'name':f'{schema}.{n}','exists':out.get(k,False)} for k,n in t.items()},'registry':remote,'local_revision':m.get('db_remote_revision')}
  def sync(self,db,mode=None,force=False):
   mode=(mode or self.cfg.get('sync_mode') or 'overwrite').lower()
   if mode not in {'overwrite','append'}: raise ValueError('sync_mode must be overwrite or append')
@@ -65,6 +65,14 @@ class PostgreSQLRepository:
     q.execute(f'INSERT INTO {R} VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',(sid,at,m.get('project_id'),m.get('project_name'),m.get('project_type'),iid,i.get('instance_name'),i.get('owner_name'),len(rows),len(vals)))
     for r in rows:q.execute(f'INSERT INTO {P} VALUES('+','.join(['%s']*12)+')',tuple(r.values()))
     for v in vals:q.execute(f'INSERT INTO {V} VALUES('+','.join(['%s']*22)+')',tuple(v.values()))
+    if str(m.get('project_type')).upper()=='QUANTITATIVE_SURVEY':
+     F=f'"{schema}"."{quant_flat_name(key)}"'; flat_cols,flat_rows=build_quant_flat_rows(db,sid,at); safe_cols=[safe_identifier(x,'field') for x in flat_cols]
+     base_cols=['snapshot_id','snapshot_at','source_instance_id','local_response_id','respondent_id','submitted_at']
+     q.execute(f'CREATE TABLE IF NOT EXISTS {F}(snapshot_id text,snapshot_at text,source_instance_id text,local_response_id text,respondent_id text,submitted_at text)')
+     for col in safe_cols:q.execute(f'ALTER TABLE {F} ADD COLUMN IF NOT EXISTS "{col}" text')
+     if mode=='overwrite':q.execute(f'DELETE FROM {F} WHERE source_instance_id=%s',(iid,))
+     names=base_cols+safe_cols; ph=','.join(['%s']*len(names)); quoted=','.join('"'+x+'"' for x in names)
+     for fr in flat_rows:q.execute(f'INSERT INTO {F} ({quoted}) VALUES ({ph})',[fr.get(x) if x!='source_instance_id' else iid for x in base_cols]+[fr.get(x) for x in flat_cols])
     now=_utcnow(); q.execute(f'''UPDATE {REG} SET project_name=%s,project_type=%s,modified_at=%s,last_sync_at=%s,db_schema=%s,table_prefix=%s,last_sync_instance=%s,status='ACTIVE',revision=%s WHERE storage_key=%s''',(m.get('project_name'),m.get('project_type'),m.get('modified_at'),now,schema,key,iid,new_rev,key))
     q.execute(f'''INSERT INTO {HIST}(sync_id,storage_key,project_id,source_instance_id,started_at,completed_at,mode,revision_before,revision_after,status,error_message) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'SUCCESS',NULL)''',(sid,key,m.get('project_id'),iid,at,now,mode,remote_rev,new_rev))
   db.update_storage_binding(db_connection_id='postgres',db_database=self.cfg.get('database'),db_schema=schema,db_table_prefix=key,db_remote_revision=new_rev)

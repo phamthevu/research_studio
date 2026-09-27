@@ -110,7 +110,7 @@ class ConnectionManagerDialog(QDialog):
      missing += [k for k in ('user',) if not v.get(k)]
     if missing: raise ValueError('Missing required fields: '+', '.join(missing))
    if name=='smtp' and not all(v.get(k) for k in ('host','port','user','password','from_email')): raise ValueError('SMTP requires host, port, user, password/app-password and from_email.')
-   result=self._connector(name).test();QMessageBox.information(self,'Connection Test',f'{name}: PASS\n\n{result}')
+   result=self._connector(name).test();show_success(self,'Connection Test Successful',f'{name} connection test passed.',[('Connector',name),('Result',str(result))])
   except Exception as e:show_error(self,'Connection Failed',f'Could not connect to {name}.',e,'Check Host, Port, Database and credentials, then retry the connection test.')
  def _sync(self,name):
   if not self.project_db:QMessageBox.warning(self,'No Project','Open a project before syncing.');return

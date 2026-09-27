@@ -73,7 +73,6 @@ def generate_survey_template(path):
       ["GENDER","Gender","SINGLE_CHOICE",True,"Male|Female|Other","","","","","",4],
       ["SAT","Satisfaction with ChatGPT","MATRIX_LIKERT",True,"1|2|3|4|5",1,5,"","","1 = Strongly disagree; 5 = Strongly agree",5],
       ["INCOME","Monthly income","DECIMAL",False,"",0,1000000000,"","","Numeric value only",6],
-      ["COMMENT","Additional comments","LONG_TEXT",False,"","","","","","",7],
     ]
     for x in samples: ws.append(x)
     mi=wb.create_sheet("Matrix_Items"); mi.append(MATRIX_COLS)

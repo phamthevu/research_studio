@@ -4,6 +4,7 @@ from integrations.config_store import load_profiles
 from integrations.postgres_repository import PostgreSQLRepository
 from integrations.s3_repository import S3Repository
 from integrations.storage_identity import table_names
+from ui.friendly_message import show_success,show_error
 
 class DataSyncManagerDialog(QDialog):
  def __init__(self,parent=None,project_db=None):
@@ -45,14 +46,17 @@ class DataSyncManagerDialog(QDialog):
     for j,v in enumerate(vals):self.hist_table.setItem(i,j,QTableWidgetItem(str(v)))
   except Exception as e:QMessageBox.critical(self,'Sync Manager',str(e))
  def sync_one(self,d):
-  try:result=self.mgr().sync_one(d);QMessageBox.information(self,'Sync',str(result))
-  except Exception as e:QMessageBox.critical(self,'Sync Failed',str(e))
+  try:
+   result=self.mgr().sync_one(d);show_success(self,'Sync Complete',f'{d} synchronization completed successfully.',[('Destination',d),('Status',result.get('status')),('Records',result.get('records'))],str(result))
+  except Exception as e:show_error(self,'Sync Failed',f'Could not synchronize to {d}.',e,'Run System Check, verify the connection and retry.')
   self.refresh()
  def sync_all(self,force=False):
-  try:result=self.mgr().sync_all(force=force);QMessageBox.information(self,'Sync All',str(result))
-  except Exception as e:QMessageBox.critical(self,'Sync Failed',str(e))
+  try:
+   result=self.mgr().sync_all(force=force);show_success(self,'Sync All Complete','Synchronization run finished successfully.',[('Destinations',len(result)),('Force mode','Yes' if force else 'No')],str(result))
+  except Exception as e:show_error(self,'Sync Failed','Synchronization could not be completed.',e)
   self.refresh()
  def retry(self):
-  try:result=self.mgr().retry_failed();QMessageBox.information(self,'Retry Failed',str(result))
-  except Exception as e:QMessageBox.critical(self,'Retry Failed',str(e))
+  try:
+   result=self.mgr().retry_failed();show_success(self,'Retry Complete','Failed synchronization jobs were retried.',[('Jobs',len(result))],str(result))
+  except Exception as e:show_error(self,'Retry Failed','Failed synchronization jobs could not be retried.',e)
   self.refresh()

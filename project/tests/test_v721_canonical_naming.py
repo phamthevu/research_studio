@@ -16,8 +16,9 @@ def test_snapshot_filenames_match_db_prefix():
         db=make(td); key=project_key(db); pkg=create_snapshot_package(db,Path(td)/'out',stamp='20260927T120000Z')
         assert table_names(key)['runs']==key+'_runs'
         assert Path(pkg['json']).name==key+'_20260927T120000Z.json'
-        assert Path(pkg['raw_excel']).name==key+'_20260927T120000Z_RAW_CODES.xlsx'
-        assert Path(pkg['numerical_excel']).name==key+'_20260927T120000Z_NUMERICAL_VALUES.xlsx'
+        assert len(pkg['excel_files'])==1
+        assert Path(pkg['excel_files'][0]).name==key+'_20260927T120000Z_QUANTITATIVE.xlsx'
+        assert len(pkg['files'])==2
         assert pkg['snapshot_id'].startswith('20260927T120000Z_')
         db.close()
 

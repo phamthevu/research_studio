@@ -79,3 +79,29 @@ def build_snapshot(db):
         elif ptype=='QUALITATIVE_INTERVIEW': _append_qual(values,base,payload)
         else: _append_mcdm(values,base,payload,cfg)
     return data,ident,sid,at,rows,values
+
+def build_quant_flat_rows(db,snapshot_id=None,snapshot_at=None):
+    """Wide quantitative rows for BI/SQL. One response = one row; no dynamic follow-up schema."""
+    data=snapshot(db); cfg=data.get('config') or {}; questions=cfg.get('questions',[])
+    columns=[]
+    for q in questions:
+        typ=str(q.get('question_type','')).upper()
+        if typ in {'TITLE','SECTION','DESCRIPTION'}:continue
+        if typ.startswith('MATRIX_'):columns.extend(str(x.get('item_id')) for x in q.get('matrix_items',[]) if x.get('item_id'))
+        elif q.get('question_id'):columns.append(str(q.get('question_id')))
+    def answer(v):return v.get('answer') if isinstance(v,dict) and ('answer' in v or 'followups' in v) else v
+    out=[]
+    for r in data.get('responses',[]):
+        p=r.get('response') if isinstance(r.get('response'),dict) else {}; row={'snapshot_id':snapshot_id,'snapshot_at':snapshot_at,'local_response_id':str(r.get('source_response_id') or r.get('id')),'respondent_id':r.get('respondent_id'),'submitted_at':r.get('submitted_at')}
+        for col in columns:
+            val=None
+            if col in p:val=answer(p.get(col))
+            else:
+                for q in questions:
+                    if str(q.get('question_type','')).upper().startswith('MATRIX_'):
+                        nested=answer(p.get(q.get('question_id'))) or {}
+                        if isinstance(nested,dict) and col in nested:val=nested.get(col);break
+            row[col]=_json(val) if isinstance(val,(dict,list)) else ('' if val is None else str(val))
+        row['Comment']=str(p.get('_comment') or '')
+        out.append(row)
+    return columns+['Comment'],out

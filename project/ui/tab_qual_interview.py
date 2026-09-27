@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 from openpyxl import Workbook
+from ui.friendly_message import show_success,show_error
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import *
 
@@ -83,7 +84,7 @@ class TabQualInterview(QWidget):
         data,errors=self._collect()
         if errors: QMessageBox.warning(self,"Validation Error","Please complete the highlighted interview items:\n\n"+'\n'.join(errors[:10])); return
         rid=self.editing_respondent_id or (self.db.create_free_respondent(name) if mode=='Free' else self.logged_in_respondent_id); self.db.save_response(rid,data)
-        QMessageBox.information(self,"Interview Saved",f"Interview saved successfully for {name or self.login_state.text()}.\n\nA clean form will now be prepared for the next participant."); self._reset_for_next()
+        show_success(self,"Interview Saved","Interview was saved successfully.",[("Participant",name or self.login_state.text()),("Next step","A clean form will be prepared for the next participant.")]); self._reset_for_next()
     def open_response_for_edit(self,respondent_id):
         row=self.db.get_response_by_respondent(respondent_id) if self.db else None
         if not row:return
@@ -99,19 +100,12 @@ class TabQualInterview(QWidget):
                 if pid:self.add_followup(pid,str(x.get('question','')),str(x.get('answer','')))
     def export(self):
         if not self.db:return
-        default_name=f"{self.db.get_meta().get('project_name','interview_results')}_Interview.xlsx"
-        name,ok=QInputDialog.getText(self,"Export Qualitative Interviews","Output file name:",text=default_name)
-        if not ok or not name.strip():return
-        name=name.strip()
-        if not name.lower().endswith('.xlsx'):name+='.xlsx'
-        folder=QFileDialog.getExistingDirectory(self,"Choose Export Folder")
-        if not folder:return
-        p=str(Path(folder)/name)
-        wb=Workbook(); meta=wb.active; meta.title='Metadata'; m=self.db.get_meta(); [meta.append([k,v]) for k,v in m.items() if k!='config_json']; lookup=wb.create_sheet('Lookup'); lookup.append(['Interview_ID','Respondent_ID','Participant_Name','Username','Source_Project','Submitted_At','Total_Items'])
-        for r in self.db.get_all_responses():
-            iid=f"Interview_{int(r['display_index']):02d}"; items=json.loads(r['response_json']).get('interview_items',[]); lookup.append([iid,r.get('respondent_id'),r.get('full_name'),r.get('username'),r.get('source_project_name'),r.get('submitted_at'),len(items)]); ws=wb.create_sheet(iid[:31]); ws.append(['Sequence','Type','Question_ID','Question','Answer'])
-            for x in items:ws.append([x.get('sequence'),x.get('kind'),x.get('question_id'),x.get('question'),x.get('answer')])
-            ws.column_dimensions['D'].width=60; ws.column_dimensions['E'].width=80
-        guide=wb.create_sheet('Initial_Guide'); guide.append(['Question_ID','Question_Text','Required','Display_Order'])
-        for q in self.config.get('initial_questions',[]):guide.append([q.get('question_id'),q.get('question_text'),q.get('required'),q.get('display_order')])
-        wb.save(p); QMessageBox.information(self,"Export Complete",f"Qualitative interviews exported successfully.\n\n{p}")
+        from core.project_excel import export_qualitative
+        from ui.friendly_message import show_success,show_error
+        default_name=f"{self.db.get_meta().get('storage_key','interview')}_QUALITATIVE.xlsx"
+        p,_=QFileDialog.getSaveFileName(self,'Export Qualitative Interviews',default_name,'Excel Workbook (*.xlsx)')
+        if not p:return
+        if not p.lower().endswith('.xlsx'):p+='.xlsx'
+        try:
+            export_qualitative(self.db,p);show_success(self,'Export Complete','Qualitative interview data was exported successfully.',[('File',p),('Excel files',1)])
+        except Exception as e:show_error(self,'Export Failed','Qualitative interview data could not be exported.',e)

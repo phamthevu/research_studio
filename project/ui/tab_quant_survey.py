@@ -4,6 +4,7 @@ from datetime import datetime
 from PyQt6.QtCore import QDate,QTime,QDateTime,Qt
 from PyQt6.QtWidgets import *
 from openpyxl import Workbook
+from ui.friendly_message import show_success,show_error
 
 LAYOUT={"TITLE","SECTION","DESCRIPTION"}
 class TabQuantSurvey(QWidget):
@@ -39,7 +40,7 @@ class TabQuantSurvey(QWidget):
         while self.form.count():
             x=self.form.takeAt(0); w=x.widget()
             if w:w.deleteLater()
-        self.widgets={}; self.followups={}
+        self.widgets={}
         for q in self.config.get('questions',[]):
             typ=q.get('question_type','').upper(); text=q.get('question_text',''); qid=q.get('question_id')
             if typ in LAYOUT:
@@ -49,29 +50,9 @@ class TabQuantSurvey(QWidget):
             box=QGroupBox(("* " if q.get('required') else "")+text); v=QVBoxLayout(box)
             if q.get('description'): d=QLabel(q['description']); d.setWordWrap(True); d.setStyleSheet("color:#666"); v.addWidget(d)
             w=self.make_widget(q); v.addWidget(w)
-            fu_host=QWidget(); fu_layout=QVBoxLayout(fu_host); fu_layout.setContentsMargins(12,4,0,0); v.addWidget(fu_host)
-            add_fu=QPushButton('+ Add follow-up'); add_fu.setProperty('secondary',True); v.addWidget(add_fu,0,Qt.AlignmentFlag.AlignLeft)
-            self.followups[qid]=[]; add_fu.clicked.connect(lambda _=False, qid=qid: self.add_followup(qid))
-            self.form.addWidget(box); self.widgets[qid]=(w,q,box); box._followup_layout=fu_layout
+            self.form.addWidget(box); self.widgets[qid]=(w,q,box)
+        comment_box=QGroupBox('Comment'); cv=QVBoxLayout(comment_box); self.comment=QPlainTextEdit(); self.comment.setPlaceholderText('Additional comments (optional)'); self.comment.setMaximumHeight(110); cv.addWidget(self.comment); self.form.addWidget(comment_box)
         self.form.addStretch()
-    def add_followup(self,parent_id,question="",answer="",followup_id=None):
-        if parent_id not in self.widgets:return
-        _,_,box=self.widgets[parent_id]; host=QGroupBox(f"Follow-up {len(self.followups.get(parent_id,[]))+1}"); lay=QFormLayout(host)
-        fq=QLineEdit(); fq.setText(str(question or '')); fa=QLineEdit(); fa.setText(str(answer or '')); delete=QPushButton("Delete follow-up"); delete.setProperty("danger",True)
-        fid=followup_id or ("FU_"+__import__('uuid').uuid4().hex[:12]); lay.addRow("Question",fq); lay.addRow("Answer",fa); lay.addRow(delete)
-        item={"id":fid,"question":fq,"answer":fa,"widget":host}; self.followups.setdefault(parent_id,[]).append(item); box._followup_layout.addWidget(host)
-        delete.clicked.connect(lambda _=False,pid=parent_id,it=item:self.delete_followup(pid,it)); fq.setFocus()
-
-    def delete_followup(self,parent_id,item):
-        if item in self.followups.get(parent_id,[]): self.followups[parent_id].remove(item); item["widget"].deleteLater()
-
-    def _pack_followups(self,qid,answer):
-        fs=[]
-        for item in self.followups.get(qid,[]):
-            q=item["question"].text().strip(); a=item["answer"].text().strip()
-            if q or a: fs.append({"id":item["id"],"question":q,"answer":a})
-        return {"answer":answer,"followups":fs} if fs else answer
-
     def opts(self,q): return [x.strip() for x in re.split(r'[|;]',q.get('options','')) if x.strip()]
     def make_widget(self,q):
         t=q.get('question_type','').upper(); opts=self.opts(q)
@@ -139,7 +120,8 @@ class TabQuantSurvey(QWidget):
                 except ValueError: err='Value must be an integer.' if t=='INTEGER' else 'Value must be a number.'
             if not empty and t=='EMAIL' and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$',str(val)): err='Invalid email address.'
             if err: box.setStyleSheet('QGroupBox{border:2px solid #dc3545;}'); errors.append(f"{q.get('question_text')}: {err}")
-            data[qid]=self._pack_followups(qid,val)
+            data[qid]=val
+        data["_comment"]=self.comment.toPlainText().strip()
         return data,errors
     def save_response(self):
         if not self.db:return
@@ -151,7 +133,7 @@ class TabQuantSurvey(QWidget):
         data,errors=self.validate()
         if errors: QMessageBox.warning(self,'Validation Error','Please correct the highlighted fields:\n\n'+'\n'.join(errors[:10])); return
         respondent_id = self.editing_respondent_id or (self.db.create_free_respondent(free_name) if mode=='Free' else self.logged_in_respondent_id)
-        self.db.save_response(respondent_id,data); self.refresh_respondents_from_db(); QMessageBox.information(self,'Response Saved',f'Response saved successfully for {free_name or "the logged-in respondent"}.\n\nThe form will be cleared for the next participant.')
+        self.db.save_response(respondent_id,data); self.refresh_respondents_from_db(); show_success(self,'Response Saved','Survey response was saved successfully.',[('Participant',free_name or 'Logged-in respondent'),('Next step','The form will be cleared for the next participant.')])
         self._reset_for_next_response()
     def _reset_for_next_response(self):
         self.logged_in_respondent_id=None
@@ -174,12 +156,11 @@ class TabQuantSurvey(QWidget):
             self.logged_in_respondent_id=respondent_id
             self.login_state.setText(f"Editing existing response — {row.get('full_name') or row.get('username') or respondent_id}")
         data=json.loads(row['response_json'])
+        self.comment.setPlainText(str(data.get('_comment','') or ''))
         for qid,val in data.items():
             if qid not in self.widgets:continue
             w,q,_=self.widgets[qid]
-            if isinstance(val,dict) and ('answer' in val or 'followups' in val):
-                packed=val; val=packed.get('answer')
-                for fu in packed.get('followups') or []: self.add_followup(qid,fu.get('question',''),fu.get('answer',''),fu.get('id'))
+            if isinstance(val,dict) and ('answer' in val or 'followups' in val): val=val.get('answer')
             if isinstance(w,QLineEdit):w.setText(str(val if val is not None else ''))
             elif isinstance(w,QPlainTextEdit):w.setPlainText(str(val or ''))
             elif isinstance(w,QComboBox):
@@ -195,37 +176,14 @@ class TabQuantSurvey(QWidget):
                     except ValueError: continue
                     btn=group.button(idx)
                     if btn: btn.setChecked(True)
-    def _export_value(self,data,var_id,questions):
-        if var_id in data:
-            v=data.get(var_id); return json.dumps(v,ensure_ascii=False) if isinstance(v,(list,dict)) else v
-        for q in questions:
-            if str(q.get('question_type','')).startswith('MATRIX_'):
-                nested=data.get(q.get('question_id')) or {}
-                if var_id in nested: return nested.get(var_id)
-        return None
     def export(self):
-        if not self.db: return
-        default_name = f"{self.db.get_meta().get('project_name','survey_results')}.xlsx"
-        name, ok = QInputDialog.getText(self, 'Export Survey Data', 'Output file name:', text=default_name)
-        if not ok or not name.strip(): return
-        name = name.strip()
-        if not name.lower().endswith('.xlsx'): name += '.xlsx'
-        folder = QFileDialog.getExistingDirectory(self, 'Choose Export Folder')
-        if not folder: return
-        p = str(Path(folder) / name)
-        wb=Workbook(); meta=wb.active; meta.title='Metadata'; m=self.db.get_meta(); [meta.append([k,v]) for k,v in m.items() if k!='config_json']
-        qs=self.config.get('questions',[]); ids=[]
-        for q in qs:
-            if q.get('question_type') in LAYOUT: continue
-            if str(q.get('question_type','')).startswith('MATRIX_'): ids.extend([x.get('item_id') for x in q.get('matrix_items',[])])
-            else: ids.append(q.get('question_id'))
-        dataws=wb.create_sheet('Data'); dataws.append(['Answer_ID','Respondent_ID','Expert_Name','Username','Source_Project','Submitted_At']+ids)
-        for r in self.db.get_all_responses():
-            d=json.loads(r['response_json']); dataws.append([f"Ans_{int(r['display_index']):02d}",r['respondent_id'],r.get('full_name'),r.get('username'),r.get('source_project_name'),r.get('submitted_at')]+[self._export_value(d,i,qs) for i in ids])
-        resp=wb.create_sheet('Respondent'); resp.append(['Respondent_ID','Full_Name','Username','Organization','Status'])
-        for r in self.db.get_respondents(): resp.append([r.get('respondent_id'),r.get('full_name'),r.get('username'),r.get('organization'),r.get('status')])
-        code=wb.create_sheet('Codebook'); code.append(['Question_ID','Question_Text','Question_Type','Required','Options','Parent_ID'])
-        for q in qs:
-            code.append([q.get('question_id'),q.get('question_text'),q.get('question_type'),q.get('required'),' | '.join(map(str,q.get('options',[]) or [])),''])
-            for mi in q.get('matrix_items',[]) or []: code.append([mi.get('item_id'),mi.get('item_text'),'MATRIX_ITEM',q.get('required'),' | '.join(map(str,q.get('options',[]) or [])),q.get('question_id')])
-        wb.save(p); QMessageBox.information(self,'Export Successful',f'Exported successfully to:\n{p}')
+        if not self.db:return
+        from core.project_excel import export_quantitative
+        from ui.friendly_message import show_success,show_error
+        default_name=f"{self.db.get_meta().get('storage_key','survey')}_QUANTITATIVE.xlsx"
+        p,_=QFileDialog.getSaveFileName(self,'Export Quantitative Survey',default_name,'Excel Workbook (*.xlsx)')
+        if not p:return
+        if not p.lower().endswith('.xlsx'):p+='.xlsx'
+        try:
+            export_quantitative(self.db,p);show_success(self,'Export Complete','Quantitative survey data was exported successfully.',[('File',p),('Excel files',1)])
+        except Exception as e:show_error(self,'Export Failed','Quantitative survey data could not be exported.',e)
