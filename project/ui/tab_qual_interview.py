@@ -29,7 +29,7 @@ class TabQualInterview(QWidget):
         t=QLabel("In-depth Interview Transcript"); t.setObjectName("pageTitle"); self.form.addWidget(t)
         note=QLabel("Record the initial interview guide below. Use ‘Add follow-up’ under the question being probed; follow-ups remain directly beneath that question as 1.1, 1.2, 2.1 …"); note.setWordWrap(True); note.setObjectName("muted"); self.form.addWidget(note)
         for i,q in enumerate(self.config.get('initial_questions',[]),1):
-            box=QGroupBox(f"{i}. {q.get('question_text','')}"); outer=QVBoxLayout(box); a=QPlainTextEdit(); a.setPlaceholderText("Record the participant's answer..."); a.setMinimumHeight(105); outer.addWidget(a)
+            box=QGroupBox(f"{i}. {q.get('question_text','')}"); outer=QVBoxLayout(box); a=QPlainTextEdit(); a.setPlaceholderText("Record the participant's answer..."); a.setMinimumHeight(63); a.setMaximumHeight(110); outer.addWidget(a)
             add=QPushButton(f"+ Add follow-up after Question {i}"); add.setProperty("secondary",True); outer.addWidget(add,0,Qt.AlignmentFlag.AlignLeft)
             holder=QWidget(); hl=QVBoxLayout(holder); hl.setContentsMargins(22,4,0,0); hl.setSpacing(8); outer.addWidget(holder)
             qid=q.get('question_id'); self.followups[qid]=[]; add.clicked.connect(lambda _=False, qid=qid: self.add_followup(qid)); self.form.addWidget(box); self.initial_widgets.append((q,a,box,hl,i))
@@ -43,7 +43,7 @@ class TabQualInterview(QWidget):
         if not row:return
         _,_,_,layout,parent_no=row; idx=len(self.followups[parent_id])+1
         box=QGroupBox(f"{parent_no}.{idx} Follow-up / Probing Question"); v=QVBoxLayout(box); head=QHBoxLayout(); tick=QCheckBox("Select for deletion"); head.addWidget(tick); head.addStretch(); v.addLayout(head)
-        q=QLineEdit(); q.setPlaceholderText("Follow-up question"); q.setText(str(question or '')); a=QPlainTextEdit(); a.setPlaceholderText("Participant's answer"); a.setPlainText(str(answer or '')); a.setMinimumHeight(85)
+        q=QLineEdit(); q.setPlaceholderText("Follow-up question"); q.setText(str(question or '')); a=QPlainTextEdit(); a.setPlaceholderText("Participant's answer"); a.setPlainText(str(answer or '')); a.setMinimumHeight(51); a.setMaximumHeight(95)
         v.addWidget(QLabel("Question")); v.addWidget(q); v.addWidget(QLabel("Answer")); v.addWidget(a); layout.addWidget(box); self.followups[parent_id].append((q,a,box,tick)); q.setFocus()
     def delete_selected_followups(self):
         selected=[]

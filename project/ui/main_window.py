@@ -40,8 +40,9 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
         self.setStyleSheet("""
             QMainWindow, QWidget { font-family: 'Segoe UI'; font-size: 10pt; }
+            QToolTip { padding:5px; }
             QMainWindow { background:#f5f7fb; }
-            QGroupBox { background:white; border:1px solid #dfe3ea; border-radius:8px; margin-top:12px; padding-top:10px; font-weight:600; }
+            QGroupBox { background:white; border:1px solid #dfe3ea; border-radius:8px; margin-top:14px; padding-top:12px; font-weight:600; }
             QGroupBox::title { subcontrol-origin:margin; left:12px; padding:0 5px; }
             QPushButton { min-height:30px; padding:3px 12px; border-radius:6px; border:1px solid #cbd2dc; background:#ffffff; }
             QPushButton:hover { background:#f0f4fa; border-color:#9eabc0; }
@@ -55,10 +56,10 @@ class MainWindow(QMainWindow):
             QPushButton[danger="true"] { background:#dc3545; color:white; border:1px solid #dc3545; font-weight:650; }
             QPushButton[danger="true"]:hover { background:#bb2d3b; }
             QPushButton:disabled { background:#e5e7eb; color:#98a2b3; border-color:#d0d5dd; }
-            QLineEdit, QComboBox, QPlainTextEdit, QTableWidget { background:white; border:1px solid #cfd6e0; border-radius:5px; padding:5px; }
+            QLineEdit, QComboBox, QPlainTextEdit, QTableWidget { background:white; border:1px solid #cfd6e0; border-radius:6px; padding:6px; selection-background-color:#dbeafe; }
             QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border:1px solid #4c78dd; }
             QTabWidget::pane { border:1px solid #dfe3ea; background:#f8fafc; }
-            QTabBar::tab { padding:9px 16px; margin-right:2px; }
+            QTabBar::tab { padding:10px 18px; margin-right:2px; min-height:22px; }
             QTabBar::tab:selected { background:white; font-weight:600; }
             QLabel#pageTitle { font-size:18pt; font-weight:700; color:#1f2937; }
             QLabel#muted { color:#667085; }

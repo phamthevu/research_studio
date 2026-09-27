@@ -11,6 +11,7 @@ from integrations.powerbi_connector import PowerBIConnector
 from integrations.email_sender import SMTPSender
 from integrations.local_folder_repository import LocalSyncFolderRepository
 from integrations.extra_connectors import FTPConnector,SFTPConnector,MongoConnector,WebhookConnector
+from ui.friendly_message import show_error
 
 DB_NAMES={'postgres','sqlserver','mysql','mongodb'}
 class ConnectionManagerDialog(QDialog):
@@ -68,7 +69,7 @@ class ConnectionManagerDialog(QDialog):
    idx=schemas.index(current) if current in schemas else 0
    choice,ok=QInputDialog.getItem(self,'Select Schema','Schema:',schemas,idx,False)
    if ok:self.sections[name][1]['schema'].setText(choice)
-  except Exception as e:QMessageBox.critical(self,'Load Schemas Failed',str(e))
+  except Exception as e:show_error(self,'Load Schemas Failed','Could not load database schemas.',e,'Check the server, database, credentials and network connection, then try again.')
  def _test(self,name):
   try:
    v=self.values()[name]
@@ -79,7 +80,7 @@ class ConnectionManagerDialog(QDialog):
     if missing: raise ValueError('Missing required fields: '+', '.join(missing))
    if name=='smtp' and not all(v.get(k) for k in ('host','port','user','password','from_email')): raise ValueError('SMTP requires host, port, user, password/app-password and from_email.')
    result=self._connector(name).test();QMessageBox.information(self,'Connection Test',f'{name}: PASS\n\n{result}')
-  except Exception as e:QMessageBox.critical(self,'Connection Failed',f'{name}: FAIL\n\n{e}')
+  except Exception as e:show_error(self,'Connection Failed',f'Could not connect to {name}.',e,'Check Host, Port, Database and credentials, then retry the connection test.')
  def _sync(self,name):
   if not self.project_db:QMessageBox.warning(self,'No Project','Open a project before syncing.');return
   try:
@@ -98,4 +99,4 @@ class ConnectionManagerDialog(QDialog):
    if not hasattr(conn,'sync'):
     QMessageBox.information(self,'Connector Saved',f'{name}: configuration is valid/saved. This connector is used for transfer/notification rather than project snapshot sync.');return
    result=conn.sync(self.project_db);QMessageBox.information(self,'Sync Complete',f'{name}: {result}')
-  except Exception as e:QMessageBox.critical(self,'Sync Failed',str(e))
+  except Exception as e:show_error(self,'Sync Failed',f'Could not synchronize the current project to {name}.',e,'Refresh status and verify the connection. If this is a revision conflict, review the remote project before forcing a sync.')

@@ -60,9 +60,11 @@ class UploadDriveDialog(QDialog,_FileMixin):
         except Exception as e: QMessageBox.critical(self,'Drive Failed',str(e))
     def _upload(self):
         try:
-            paths=self._paths()
-            if not paths: raise RuntimeError('Add at least one file.')
-            results=self._repo().upload_files(paths)
+            paths=self._paths(); repo=self._repo(); results=[]
+            if self.project_db:
+                r=repo.sync(self.project_db); results.extend(r['files'])
+            if paths: results.extend(repo.upload_files(paths))
+            if not results: raise RuntimeError('Open a project or add at least one file.')
             lines=[f"{x.get('name')} → {x.get('id')}" for x in results]
             QMessageBox.information(self,'Upload Complete',f"Uploaded {len(results)} file(s).\n"+'\n'.join(lines[:8]))
         except Exception as e: QMessageBox.critical(self,'Upload Failed',str(e))

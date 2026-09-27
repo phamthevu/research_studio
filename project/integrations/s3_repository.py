@@ -3,6 +3,7 @@ from pathlib import Path
 import uuid
 from .snapshot_package import create_snapshot_package
 from .storage_identity import safe_identifier
+from .artifact_naming import project_key
 class S3Repository:
  def __init__(self,cfg): self.cfg=cfg or {}
  def _client(self):
@@ -18,7 +19,7 @@ class S3Repository:
   if not b:raise ValueError('Bucket is required.')
   self._client().head_bucket(Bucket=b);return f'Bucket reachable: {b}'
  def project_prefix(self,db):
-  m=db.get_meta() or {}; base=(self.cfg.get('prefix') or 'research-studio').strip('/'); key=safe_identifier(m.get('storage_key') or m.get('project_id')); return f'{base}/{key}'
+  m=db.get_meta() or {}; base=(self.cfg.get('prefix') or 'research-studio').strip('/'); key=project_key(db); return f'{base}/{key}'
  def status(self,db):
   b=self.cfg.get('bucket'); prefix=self.project_prefix(db)+'/'
   if not b:return {'exists':False,'bucket':'','prefix':prefix}
@@ -26,7 +27,7 @@ class S3Repository:
  def sync(self,project_db):
   package=create_snapshot_package(project_db); bucket=self.cfg.get('bucket')
   if not bucket:raise ValueError('Bucket is required.')
-  project_prefix=self.project_prefix(project_db); stamp=package['stamp']; snapshot_id=f"{stamp}_{uuid.uuid4().hex[:12]}"; client=self._client();results=[]
+  project_prefix=self.project_prefix(project_db); stamp=package['stamp']; snapshot_id=package['snapshot_id']; client=self._client();results=[]
   content_types={'.json':'application/json','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
   for raw in package['files']:
    p=Path(raw);key=f'{project_prefix}/snapshots/{snapshot_id}/{p.name}';body=p.read_bytes();client.put_object(Bucket=bucket,Key=key,Body=body,ContentType=content_types.get(p.suffix,'application/octet-stream'));results.append({'key':key,'bytes':len(body),'name':p.name})
