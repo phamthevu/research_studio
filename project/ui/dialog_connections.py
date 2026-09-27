@@ -1,4 +1,5 @@
-from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLineEdit,QPushButton,QTabWidget,QWidget,QMessageBox,QLabel,QComboBox,QInputDialog
+from PyQt6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLineEdit,QPushButton,QTabWidget,QWidget,QMessageBox,QLabel,QComboBox,QInputDialog,QScrollArea,QApplication)
+from PyQt6.QtCore import QSettings
 from integrations.config_store import load_profiles,save_profiles
 from integrations.postgres_repository import PostgreSQLRepository
 from integrations.sqlserver_repository import SQLServerRepository
@@ -16,15 +17,20 @@ from ui.friendly_message import show_error
 DB_NAMES={'postgres','sqlserver','mysql','mongodb'}
 class ConnectionManagerDialog(QDialog):
  def __init__(self,parent=None,project_db=None):
-  super().__init__(parent);self.project_db=project_db;self.setWindowTitle('V6 Connection Manager');self.resize(800,590)
-  root=QVBoxLayout(self);note=QLabel('Connections are grouped by type. Local .mcdm remains the source of truth. Database Sync writes the current local project state to staging. OVERWRITE is the default; APPEND preserves historical snapshots. Credentials are stored outside the project.');note.setWordWrap(True);root.addWidget(note)
+  super().__init__(parent);self.project_db=project_db;self.setWindowTitle('Connection Manager');self._saving=False;self._settings=QSettings('ResearchStudio','ResearchStudio');self._apply_saved_size()
+  root=QVBoxLayout(self);root.setContentsMargins(12,10,12,10);root.setSpacing(8)
+  sizebar=QHBoxLayout();sizebar.addWidget(QLabel('UI width:'));
+  for label,width in [('Compact',720),('Normal',860),('Wide',1040)]:
+   b=QPushButton(label);b.setMaximumWidth(90);b.clicked.connect(lambda _,w=width:self._set_ui_width(w));sizebar.addWidget(b)
+  sizebar.addStretch();root.addLayout(sizebar)
+  note=QLabel('Connections are grouped by type. Local .mcdm remains the source of truth. Database Sync writes the current local project state to staging. OVERWRITE is the default; APPEND preserves historical snapshots. Credentials are stored outside the project.');note.setWordWrap(True);root.addWidget(note)
   self.categories=QTabWidget();root.addWidget(self.categories);self.sections={}
   self._category('Database',[('postgres','PostgreSQL',['host','port','database','schema','user','password','sslmode','timeout','sync_mode']),('sqlserver','SQL Server',['host','port','database','schema','auth_mode','user','password','driver','encrypt','trust_server_certificate','timeout','sync_mode']),('mysql','MySQL / MariaDB',['host','port','database','user','password','timeout','sync_mode']),('mongodb','MongoDB',['uri','database'])])
   self._category('Storage',[('s3','S3 / MinIO',['endpoint_url','region','bucket','access_key','secret_key','prefix']),('sync_folder','Cloud Sync Folder',['folder','project_subfolder']),('drive','Google Drive API (Legacy)',['service_account_json','folder_id']),('adls','Azure Blob / ADLS Gen2',['account_url','credential','container','prefix']),('ftp','FTP',['host','port','user','password','path']),('sftp','SFTP',['host','port','user','password','path'])])
   self._category('Email / Messaging',[('smtp','Email / SMTP',['host','port','user','password','from_email','starttls','ssl']),('webhook','REST / Webhook',['url','bearer_token'])])
   self._category('Analytics / BI',[('bigquery','BigQuery',['project_id','responses_table']),('powerbi','Power BI',['push_url','bearer_token'])])
   info=QLabel('Cloud Sync Folder works with Google Drive Desktop, OneDrive, Dropbox, NAS or any mounted/synced folder — no GCP required. Optional connectors such as MongoDB/SFTP require their Python packages.');info.setWordWrap(True);root.addWidget(info)
-  row=QHBoxLayout();b=QPushButton('Save Connections');b.setProperty('success',True);b.clicked.connect(self.save);row.addStretch();row.addWidget(b);root.addLayout(row);self.load()
+  row=QHBoxLayout();b=QPushButton('Save Connections');b.setProperty('success',True);b.setMinimumHeight(34);b.clicked.connect(self.save);row.addStretch();row.addWidget(b);root.addLayout(row);self.load()
  def _line(self,password=False):
   w=QLineEdit();
   if password:w.setEchoMode(QLineEdit.EchoMode.Password)
@@ -32,7 +38,7 @@ class ConnectionManagerDialog(QDialog):
  def _category(self,title,items):
   outer=QTabWidget();self.categories.addTab(outer,title)
   for name,label,fields in items:
-   w=QWidget();f=QFormLayout(w);d={}
+   content=QWidget();f=QFormLayout(content);f.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow);d={}
    for k in fields:
     if k=='sync_mode':
      x=QComboBox();x.addItem('OVERWRITE current staging (Default)','overwrite');x.addItem('APPEND snapshots (History / more rows)','append');d[k]=x
@@ -46,7 +52,7 @@ class ConnectionManagerDialog(QDialog):
    if name in {'postgres','sqlserver'}:
     ls=QPushButton('Load Schemas');ls.clicked.connect(lambda _,n=name:self._load_schemas(n));h.addWidget(ls)
    sync=QPushButton('Sync Current Project');sync.setProperty('primary',True);sync.clicked.connect(lambda _,n=name:self._sync(n));h.addWidget(sync);h.addStretch();f.addRow(h)
-   outer.addTab(w,label);self.sections[name]=(w,d)
+   scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QScrollArea.Shape.NoFrame);scroll.setWidget(content);outer.addTab(scroll,label);self.sections[name]=(content,d)
  def values(self):
   return {n:{k:(w.currentData() if isinstance(w,QComboBox) else w.text().strip()) for k,w in pair[1].items()} for n,pair in self.sections.items()}
  def load(self):
@@ -57,7 +63,32 @@ class ConnectionManagerDialog(QDialog):
     if isinstance(w,QComboBox):
      idx=w.findData(val or 'overwrite');w.setCurrentIndex(max(0,idx))
     else:w.setText(val)
- def save(self):save_profiles(self.values());QMessageBox.information(self,'Connections Saved','Connection profiles saved outside the project file.')
+ def _apply_saved_size(self):
+  screen=QApplication.primaryScreen().availableGeometry() if QApplication.primaryScreen() else None
+  width=int(self._settings.value('connection_manager/width',860))
+  width=max(680,min(width,(screen.width()-80) if screen else 1200))
+  height=min(620,(screen.height()-100) if screen else 620)
+  self.resize(width,max(460,height))
+ def _set_ui_width(self,width):
+  screen=QApplication.primaryScreen().availableGeometry() if QApplication.primaryScreen() else None
+  width=max(680,min(int(width),(screen.width()-80) if screen else int(width)))
+  self.resize(width,self.height());self._settings.setValue('connection_manager/width',width)
+ def _persist(self):
+  if self._saving:return
+  self._saving=True
+  try:
+   save_profiles(self.values())
+  finally:self._saving=False
+ def save(self):
+  try:self._persist();QMessageBox.information(self,'Connections Saved','Connection profiles and credentials were saved.')
+  except Exception as e:show_error(self,'Save Failed','Could not save the connection profiles.',e,'Check Windows Credential Manager/keyring availability and try again.')
+ def done(self,result):
+  # Connection Manager is an editor: closing it persists the current values so other tabs can sync immediately.
+  try:self._persist()
+  except Exception as e:
+   show_error(self,'Save Failed','The Connection Manager could not save your latest changes.',e,'Keep this dialog open, check credential storage, then save again.');return
+  self._settings.setValue('connection_manager/width',self.width())
+  super().done(result)
  def _connector(self,name):
   cls={'postgres':PostgreSQLRepository,'sqlserver':SQLServerRepository,'mysql':MySQLRepository,'mongodb':MongoConnector,'s3':S3Repository,'sync_folder':LocalSyncFolderRepository,'drive':GoogleDriveRepository,'adls':ADLSRepository,'ftp':FTPConnector,'sftp':SFTPConnector,'smtp':SMTPSender,'webhook':WebhookConnector,'bigquery':BigQueryRepository,'powerbi':PowerBIConnector}[name]
   return cls(self.values()[name])

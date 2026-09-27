@@ -37,11 +37,24 @@ def save_profiles(data):
   current.setdefault(profile,{})
   for field,value in vals.items():
    if field in SECRET_FIELDS.get(profile,set()):
-    if kr:
-     try:kr.set_password(SERVICE,_secret_name(profile,field),str(value or '')); current[profile].pop(field,None); continue
-     except Exception:pass
-    # No usable OS keyring: do not silently persist plaintext secrets.
-    current[profile].pop(field,None)
+    secret=str(value or '')
+    if not secret:
+     # Blank optional credentials must not make an otherwise unrelated profile unsaveable.
+     if kr:
+      try:
+       existing=kr.get_password(SERVICE,_secret_name(profile,field))
+       if existing is not None: kr.delete_password(SERVICE,_secret_name(profile,field))
+      except Exception: pass
+     current[profile].pop(field,None); continue
+    if not kr: raise RuntimeError('Secure credential storage is unavailable. Install/configure keyring before saving secrets.')
+    try:
+     kr.set_password(SERVICE,_secret_name(profile,field),secret)
+     # Read-after-write catches backends that accept set_password but do not persist.
+     stored=kr.get_password(SERVICE,_secret_name(profile,field))
+     if stored != secret: raise RuntimeError(f'Credential verification failed for {profile}.{field}')
+     current[profile].pop(field,None); continue
+    except Exception as e:
+     raise RuntimeError(f'Could not securely persist {profile}.{field}: {e}') from e
    else:current[profile][field]=value
  # Ensure no known secret is written to JSON.
  for profile,fields in SECRET_FIELDS.items():
