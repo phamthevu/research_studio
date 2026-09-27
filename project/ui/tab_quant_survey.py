@@ -51,7 +51,6 @@ class TabQuantSurvey(QWidget):
             if q.get('description'): d=QLabel(q['description']); d.setWordWrap(True); d.setStyleSheet("color:#666"); v.addWidget(d)
             w=self.make_widget(q); v.addWidget(w)
             self.form.addWidget(box); self.widgets[qid]=(w,q,box)
-        comment_box=QGroupBox('Comment'); cv=QVBoxLayout(comment_box); self.comment=QPlainTextEdit(); self.comment.setPlaceholderText('Additional comments (optional)'); self.comment.setMaximumHeight(110); cv.addWidget(self.comment); self.form.addWidget(comment_box)
         self.form.addStretch()
     def opts(self,q): return [x.strip() for x in re.split(r'[|;]',q.get('options','')) if x.strip()]
     def make_widget(self,q):
@@ -121,7 +120,6 @@ class TabQuantSurvey(QWidget):
             if not empty and t=='EMAIL' and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$',str(val)): err='Invalid email address.'
             if err: box.setStyleSheet('QGroupBox{border:2px solid #dc3545;}'); errors.append(f"{q.get('question_text')}: {err}")
             data[qid]=val
-        data["_comment"]=self.comment.toPlainText().strip()
         return data,errors
     def save_response(self):
         if not self.db:return
@@ -156,7 +154,6 @@ class TabQuantSurvey(QWidget):
             self.logged_in_respondent_id=respondent_id
             self.login_state.setText(f"Editing existing response — {row.get('full_name') or row.get('username') or respondent_id}")
         data=json.loads(row['response_json'])
-        self.comment.setPlainText(str(data.get('_comment','') or ''))
         for qid,val in data.items():
             if qid not in self.widgets:continue
             w,q,_=self.widgets[qid]

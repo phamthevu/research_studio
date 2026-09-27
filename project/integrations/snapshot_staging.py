@@ -34,6 +34,7 @@ def _quant_question_map(cfg):
 def _append_quant(values,base,payload,cfg):
     qmap=_quant_question_map(cfg)
     for idx,(qid,stored) in enumerate(payload.items()):
+        if str(qid) == '_comment': continue  # legacy V7.4 system field; intentionally ignored
         q=qmap.get(str(qid),{})
         # V7.1 representation: {answer:<base answer>, followups:[{id,question,answer},...]}
         if isinstance(stored,dict) and ('answer' in stored or 'followups' in stored):
@@ -102,6 +103,5 @@ def build_quant_flat_rows(db,snapshot_id=None,snapshot_at=None):
                         nested=answer(p.get(q.get('question_id'))) or {}
                         if isinstance(nested,dict) and col in nested:val=nested.get(col);break
             row[col]=_json(val) if isinstance(val,(dict,list)) else ('' if val is None else str(val))
-        row['Comment']=str(p.get('_comment') or '')
         out.append(row)
-    return columns+['Comment'],out
+    return columns,out

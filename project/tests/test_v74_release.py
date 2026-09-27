@@ -5,14 +5,14 @@ from core.project_db import ProjectDB
 from core.project_excel import export_quantitative,export_qualitative
 from integrations.snapshot_package import create_snapshot_package
 
-def test_quant_ui_has_no_followup_and_has_comment():
+def test_quant_ui_has_no_followup_and_no_implicit_comment():
  s=Path('ui/tab_quant_survey.py').read_text(encoding='utf-8')
  assert 'Add follow-up' not in s and 'def add_followup' not in s
- assert "QGroupBox('Comment')" in s and "data[\"_comment\"]" in s
+ assert "QGroupBox('Comment')" not in s and "data[\"_comment\"]" not in s
 
-def test_quant_export_is_one_flat_excel_with_comment():
+def test_quant_export_is_one_flat_excel_without_implicit_comment():
  with tempfile.TemporaryDirectory() as td:
-  p=Path(td)/'q.mcdm';cfg={'auth_mode':'Free','questions':[{'question_id':'Q1','question_text':'Age','question_type':'INTEGER','required':False,'display_order':1},{'question_id':'Q2','question_text':'Tags','question_type':'MULTIPLE_CHOICE','required':False,'options':['A','B'],'display_order':2}]};ProjectDB.create_project(str(p),'Survey','QUANTITATIVE_SURVEY',cfg,[]);db=ProjectDB(str(p));rid=db.create_free_respondent('P1');db.save_response(rid,{'Q1':25,'Q2':['A','B'],'_comment':'hello'});out=Path(td)/'q.xlsx';export_quantitative(db,out);wb=openpyxl.load_workbook(out);ws=wb['Data'];hdr=[c.value for c in ws[1]];assert hdr[-1]=='Comment';assert ws.cell(2,hdr.index('Q1')+1).value==25;assert ws.cell(2,len(hdr)).value=='hello';pkg=create_snapshot_package(db,Path(td)/'snap',stamp='T');assert len(pkg['excel_files'])==1 and len(pkg['files'])==2 and pkg['excel_files'][0].endswith('_QUANTITATIVE.xlsx');db.close()
+  p=Path(td)/'q.mcdm';cfg={'auth_mode':'Free','questions':[{'question_id':'Q1','question_text':'Age','question_type':'INTEGER','required':False,'display_order':1},{'question_id':'Q2','question_text':'Tags','question_type':'MULTIPLE_CHOICE','required':False,'options':['A','B'],'display_order':2}]};ProjectDB.create_project(str(p),'Survey','QUANTITATIVE_SURVEY',cfg,[]);db=ProjectDB(str(p));rid=db.create_free_respondent('P1');db.save_response(rid,{'Q1':25,'Q2':['A','B'],'_comment':'legacy ignored'});out=Path(td)/'q.xlsx';export_quantitative(db,out);wb=openpyxl.load_workbook(out);ws=wb['Data'];hdr=[c.value for c in ws[1]];assert 'Comment' not in hdr;assert ws.cell(2,hdr.index('Q1')+1).value==25;pkg=create_snapshot_package(db,Path(td)/'snap',stamp='T');assert len(pkg['excel_files'])==1 and len(pkg['files'])==2 and pkg['excel_files'][0].endswith('_QUANTITATIVE.xlsx');db.close()
 
 def test_qual_snapshot_is_json_plus_one_excel():
  with tempfile.TemporaryDirectory() as td:

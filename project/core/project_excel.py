@@ -35,16 +35,15 @@ def _quant_value(payload,var_id,questions):
 
 def export_quantitative(db,path):
     cfg=db.get_config_dict(); qs=cfg.get('questions',[]); ids=_quant_ids(cfg); wb=Workbook(); ws=wb.active;ws.title='Data'
-    ws.append(['Answer_ID','Respondent_ID','Participant_Name','Username','Organization','Source_Project','Submitted_At']+ids+['Comment'])
+    ws.append(['Answer_ID','Respondent_ID','Participant_Name','Username','Organization','Source_Project','Submitted_At']+ids)
     for r in db.get_all_responses():
-        d=json.loads(r['response_json']); comment=d.get('_comment','')
-        ws.append([f"Ans_{int(r['display_index']):02d}",r.get('respondent_id'),r.get('full_name'),r.get('username'),r.get('organization'),r.get('source_project_name'),r.get('submitted_at')]+[_quant_value(d,i,qs) for i in ids]+[comment])
+        d=json.loads(r['response_json'])
+        ws.append([f"Ans_{int(r['display_index']):02d}",r.get('respondent_id'),r.get('full_name'),r.get('username'),r.get('organization'),r.get('source_project_name'),r.get('submitted_at')]+[_quant_value(d,i,qs) for i in ids])
     code=wb.create_sheet('Codebook');code.append(['Variable_ID','Question_Text','Question_Type','Required','Options','Parent_ID'])
     for q in qs:
         if str(q.get('question_type','')).upper() in LAYOUT:continue
         code.append([q.get('question_id'),q.get('question_text'),q.get('question_type'),q.get('required'),' | '.join(map(str,q.get('options',[]) or [])),''])
         for mi in q.get('matrix_items',[]) or []:code.append([mi.get('item_id'),mi.get('item_text'),'MATRIX_ITEM',q.get('required'),' | '.join(map(str,q.get('options',[]) or [])),q.get('question_id')])
-    code.append(['Comment','Additional participant comment','LONG_TEXT',False,'',''])
     resp=wb.create_sheet('Respondents');resp.append(['Respondent_ID','Full_Name','Username','Organization','Status'])
     for r in db.get_respondents():resp.append([r.get('respondent_id'),r.get('full_name'),r.get('username'),r.get('organization'),r.get('status')])
     meta=wb.create_sheet('Metadata');
