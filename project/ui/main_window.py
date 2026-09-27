@@ -28,7 +28,10 @@ from integrations.sqlserver_repository import SQLServerRepository
 from integrations.mysql_repository import MySQLRepository
 from PyQt6.QtCore import QTimer
 from ui.dialog_file_transfer import SendFilesEmailDialog, UploadDriveDialog
-from ui.i18n import set_language, translate_tree
+from ui.friendly_message import show_success,show_error
+from ui.dialog_system_check import SystemCheckDialog
+from ui.dialog_activity import ActivityDialog
+from integrations.backup_manager import backup_project
 
 
 class MainWindow(QMainWindow):
@@ -153,10 +156,6 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        language_menu = self.menuBar().addMenu("Language")
-        lang_en = QAction("English", self); lang_en.triggered.connect(lambda: self._set_ui_language("en")); language_menu.addAction(lang_en)
-        lang_vi = QAction("Vietnamese", self); lang_vi.triggered.connect(lambda: self._set_ui_language("vi")); language_menu.addAction(lang_vi)
-
         integrations_menu = self.menuBar().addMenu("Integrations")
         self.action_connections = QAction("Connection Manager...", self)
         self.action_connections.triggered.connect(self.show_connection_manager)
@@ -174,14 +173,9 @@ class MainWindow(QMainWindow):
         self.action_drive_files = QAction("Upload Files to Google Drive...", self)
         self.action_drive_files.triggered.connect(self.show_drive_files)
         integrations_menu.addAction(self.action_drive_files)
-
-
-
-    def _set_ui_language(self, code):
-        set_language(code)
-        translate_tree(self)
-        self._refresh_project_info_bar()
-        self.statusBar().showMessage("Đã chuyển sang Tiếng Việt" if code == "vi" else "Language changed to English", 4000)
+        integrations_menu.addSeparator()
+        aa=QAction("Activity Center...",self);aa.triggered.connect(lambda:ActivityDialog(self).exec());integrations_menu.addAction(aa)
+        sc=QAction("System Check...",self);sc.triggered.connect(lambda:SystemCheckDialog(self).exec());integrations_menu.addAction(sc)
 
     def show_auto_snapshot(self):
         AutoSnapshotDialog(self).exec()
@@ -503,6 +497,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
+            backup_path=backup_project(self.project_db,'before_merge')
             logs = self.project_db.merge_other_projects(compatible)
             # V4.7.2: refresh project-type views through capabilities rather than
             # assuming every survey/interview widget implements the MCDM method.

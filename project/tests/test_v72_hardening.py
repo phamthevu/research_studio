@@ -25,11 +25,6 @@ def test_qual_answer_height_reduced():
     assert 'setMinimumHeight(63)' in src
     assert 'setMinimumHeight(51)' in src
 
-def test_i18n_translates_from_source_not_rendered():
-    src=Path('ui/i18n.py').read_text(encoding='utf-8')
-    assert "'_i18n_'+prop" in src
-    assert "if _current!='en' else src" in src
-
 def test_friendly_popup_has_summary_action_details():
     src=Path('ui/friendly_message.py').read_text(encoding='utf-8')
     for x in ('What you can do:','Technical details','Copy Details'):

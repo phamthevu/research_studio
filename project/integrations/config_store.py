@@ -11,8 +11,17 @@ DEFAULT={
  'mysql':{'host':'localhost','port':3306,'database':'research_studio','user':'','password':'','timeout':8,'sync_mode':'overwrite'},
  's3':{'endpoint_url':'','region':'ap-southeast-1','bucket':'','access_key':'','secret_key':'','prefix':'research-studio'},'drive':{'service_account_json':'','folder_id':''},'adls':{'account_url':'','credential':'','container':'','prefix':'research-studio'},'bigquery':{'project_id':'','responses_table':'research_studio.responses'},'powerbi':{'push_url':'','bearer_token':''},'smtp':{'host':'smtp.gmail.com','port':587,'user':'','password':'','from_email':'','starttls':'true','ssl':'false'},'sync_folder':{'folder':'','project_subfolder':'true'},'mongodb':{'uri':'mongodb://localhost:27017','database':'research_studio'},'ftp':{'host':'','port':21,'user':'','password':'','path':'/'},'sftp':{'host':'','port':22,'user':'','password':'','path':'/'},'webhook':{'url':'','bearer_token':''},'auto_snapshot':{'enabled':'false','interval_minutes':'30','destination':'postgres','sync_mode':'overwrite'}}
 def _keyring():
- try: import keyring; return keyring
+ try:
+  import keyring
+  backend=keyring.get_keyring(); name=f'{backend.__class__.__module__}.{backend.__class__.__name__}'.lower()
+  if 'fail' in name or getattr(backend,'priority',0)<=0:return None
+  return keyring
  except Exception:return None
+def credential_backend_status():
+ kr=_keyring()
+ if not kr:return {'ok':False,'detail':'No usable secure keyring backend. On Windows, install keyring and use Windows Credential Manager.'}
+ try:return {'ok':True,'detail':str(kr.get_keyring())}
+ except Exception as e:return {'ok':False,'detail':str(e)}
 def _secret_name(profile,field): return f'{profile}:{field}'
 def load_profiles():
  out=json.loads(json.dumps(DEFAULT)); data={}

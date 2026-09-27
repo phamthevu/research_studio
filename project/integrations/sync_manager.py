@@ -7,6 +7,8 @@ from .config_store import APP_DIR, load_profiles
 from .postgres_repository import PostgreSQLRepository
 from .s3_repository import S3Repository
 from .powerbi_connector import PowerBIConnector
+from .health_check import connector_preflight
+from .activity_store import add_activity
 
 STATE_DB = APP_DIR / 'sync_state.sqlite3'
 DESTINATIONS = ('postgres','s3','powerbi')
@@ -82,6 +84,9 @@ class DataSyncManager:
         return cls(self.profiles.get(d,{}) )
     def sync_one(self,destination,force=False):
         if destination not in DESTINATIONS: raise ValueError('Unknown destination: '+str(destination))
+        pre=connector_preflight(destination,self.db,self.profiles)
+        if not pre['ok']:
+            raise RuntimeError('Pre-flight failed. '+'; '.join(f"{x['name']}: {x['detail']}" for x in pre['checks'] if not x['ok']))
         fp=project_fingerprint(self.db); current={r['destination']:r for r in self.store.rows(self.pid,fp)}[destination]
         if not force and current['status']=='SYNCED' and current.get('last_fingerprint')==fp:
             return {'destination':destination,'status':'SKIPPED','reason':'No local changes','records':0}
@@ -92,9 +97,10 @@ class DataSyncManager:
             result=(connector.sync(self.db,force=force) if 'force' in params else connector.sync(self.db)) or {}
             records=int(result.get('responses',result.get('rows',0)) or 0)
             self.store.success(self.pid,destination,fp,records,result,log_id)
+            add_activity('SUCCESS',f'{destination} sync completed',json.dumps(result,default=str),self.pid)
             return {'destination':destination,'status':'SYNCED','records':records,'result':result}
         except Exception as e:
-            self.store.fail(self.pid,destination,e,log_id); raise
+            self.store.fail(self.pid,destination,e,log_id); add_activity('ERROR',f'{destination} sync failed',str(e),self.pid); raise
     def sync_all(self,force=False):
         out=[]
         for d in DESTINATIONS:
