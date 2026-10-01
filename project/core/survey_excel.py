@@ -82,6 +82,9 @@ def generate_survey_template(path):
         ["SAT","SAT3","ChatGPT improves my work",3],
         ["SAT","SAT4","I am satisfied with ChatGPT",4],
     ]: mi.append(x)
+    schema=wb.create_sheet("Schema"); schema.append(["Field_Name","Role","Data_Type","Required","Description"]);
+    for x in COLS: schema.append([x,"CONFIG","TEXT",x in {"Question_ID","Question_Text","Question_Type"},"Quantitative question configuration field"]);
+    for x in MATRIX_COLS: schema.append([x,"CONFIG_MATRIX","TEXT",x in {"Parent_ID","Item_ID","Item_Text"},"Matrix item configuration field"]);
     ac=wb.create_sheet("Accounts"); ac.append(["Respondent_ID","Username","Password","Full_Name","Organization"]); ac.append(["R001","expert01","123","Expert 01","Organization A"])
     for sh in wb.worksheets:
         sh.freeze_panes="A2"; sh.auto_filter.ref=sh.dimensions

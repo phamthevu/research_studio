@@ -32,6 +32,8 @@ def qualitative_config_to_dict(questions,auth_mode="Free"):
 def generate_qualitative_template(path):
     wb=Workbook(); ws=wb.active; ws.title="Questions"; ws.append(QUESTION_COLS)
     for row in [["Q01","Can you describe your experience with this topic?",True,1],["Q02","What factors influenced your experience or decision?",True,2],["Q03","What challenges did you encounter?",False,3],["Q04","Is there anything else you would like to add?",False,4]]: ws.append(row)
+    schema=wb.create_sheet("Schema"); schema.append(["Field_Name","Role","Data_Type","Required","Description"]);
+    for x in QUESTION_COLS: schema.append([x,"CONFIG","TEXT",x in {"Question_ID","Question_Text"},"Qualitative question configuration field"]);
     ac=wb.create_sheet("Accounts"); ac.append(["Respondent_ID","Username","Password","Full_Name","Organization"]); ac.append(["R001","interview01","123","Participant 01",""])
     for sh in wb.worksheets:
         sh.freeze_panes="A2"

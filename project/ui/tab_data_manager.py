@@ -36,7 +36,7 @@ class RespondentDialog(QDialog):
 
 
 class TabDataManager(QWidget):
-    edit_response_requested = pyqtSignal(str)
+    edit_response_requested = pyqtSignal(int)
     respondents_changed = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -64,7 +64,9 @@ class TabDataManager(QWidget):
         self.tbl_respondents.setHorizontalHeaderLabels(["Respondent ID", "Full Name", "Username", "Organization", "Status", "Created At"])
         self.tbl_respondents.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.tbl_respondents.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_respondents.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        hr=self.tbl_respondents.horizontalHeader(); hr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive); hr.setStretchLastSection(True)
+        self.tbl_respondents.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        for i,w in enumerate([210,180,160,180,100,165]): self.tbl_respondents.setColumnWidth(i,w)
         lr.addWidget(self.tbl_respondents)
         root.addWidget(grp_r, 1)
 
@@ -75,11 +77,14 @@ class TabDataManager(QWidget):
         b_del = QPushButton("Delete Response"); b_del.setProperty("danger", True); b_del.clicked.connect(self.delete_response)
         b_ref = QPushButton("Refresh"); b_ref.clicked.connect(self.refresh)
         abar.addWidget(b_edit); abar.addWidget(b_del); abar.addWidget(b_ref); abar.addStretch(); la.addLayout(abar)
-        self.tbl_responses = QTableWidget(0, 8)
-        self.tbl_responses.setHorizontalHeaderLabels(["Answer", "Expert", "Respondent ID", "Source Project", "Submitted At", "Merged At", "Source File", "DB ID"])
+        self.tbl_responses = QTableWidget(0, 10)
+        self.tbl_responses.setHorizontalHeaderLabels(["Answer", "Expert", "Respondent ID", "Source Project ID", "Source Project", "Source File", "Submitted (Created)", "Modified", "Merged At", "DB ID"])
         self.tbl_responses.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.tbl_responses.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_responses.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        ha=self.tbl_responses.horizontalHeader(); ha.setSectionResizeMode(QHeaderView.ResizeMode.Interactive); ha.setStretchLastSection(False)
+        self.tbl_responses.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        widths=[85,180,210,220,180,190,165,165,165,75]
+        for i,w in enumerate(widths): self.tbl_responses.setColumnWidth(i,w)
         la.addWidget(self.tbl_responses)
         root.addWidget(grp_a, 1)
 
@@ -101,8 +106,9 @@ class TabDataManager(QWidget):
         responses = self.project_db.get_all_responses()
         self.tbl_responses.setRowCount(len(responses))
         for i, r in enumerate(responses):
-            vals = [f"Ans_{int(r['display_index']):02d}", r.get("full_name"), r.get("respondent_id"), r.get("source_project_name"), r.get("submitted_at"), r.get("merged_at"), r.get("source_file"), r.get("id")]
-            for j, v in enumerate(vals): self.tbl_responses.setItem(i, j, QTableWidgetItem(str(v or "")))
+            vals = [f"Ans_{int(r['display_index']):02d}", r.get("full_name"), r.get("respondent_id"), r.get("source_project_id"), r.get("source_project_name"), r.get("source_file"), r.get("submitted_at"), r.get("modified_at"), r.get("merged_at"), r.get("id")]
+            for j, v in enumerate(vals):
+                item=QTableWidgetItem(str(v or "")); item.setToolTip(str(v or "")); self.tbl_responses.setItem(i, j, item)
 
     def _selected_respondent(self):
         row = self.tbl_respondents.currentRow()
@@ -160,11 +166,11 @@ class TabDataManager(QWidget):
     def _selected_response(self):
         row=self.tbl_responses.currentRow()
         if row < 0: return None, None
-        return int(self.tbl_responses.item(row,7).text()), self.tbl_responses.item(row,2).text()
+        return int(self.tbl_responses.item(row,9).text()), self.tbl_responses.item(row,2).text()
 
     def edit_response(self):
-        _,rid=self._selected_response()
-        if rid: self.edit_response_requested.emit(rid)
+        response_id,_=self._selected_response()
+        if response_id is not None: self.edit_response_requested.emit(response_id)
 
     def delete_response(self):
         response_id,_=self._selected_response()

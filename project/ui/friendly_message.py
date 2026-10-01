@@ -18,7 +18,13 @@ class FriendlyMessageDialog(QDialog):
   def flip():self.d.setVisible(not self.d.isVisible());t.setText('Technical details ▾' if self.d.isVisible() else 'Technical details ▸')
   t.clicked.connect(flip);c.clicked.connect(lambda:QApplication.clipboard().setText(self.d.toPlainText()));z.clicked.connect(self.accept);r.addWidget(t);r.addWidget(c);r.addStretch();r.addWidget(z);l.addLayout(r)
 def show_error(parent,title,summary,exc=None,action='Review the settings and try again.',facts=None):
- d=''.join(traceback.format_exception(type(exc),exc,exc.__traceback__)) if exc else summary;return FriendlyMessageDialog(parent,title,summary,action,d,'error',facts).exec()
+ if isinstance(exc, BaseException):
+  d=''.join(traceback.format_exception(type(exc),exc,exc.__traceback__))
+ elif exc:
+  d=str(exc)
+ else:
+  d=summary
+ return FriendlyMessageDialog(parent,title,summary,action,d,'error',facts).exec()
 def show_success(parent,title,summary,facts=None,details=''):
  return FriendlyMessageDialog(parent,title,summary,'No further action is required.',details,'success',facts).exec()
 def show_warning(parent,title,summary,action='',facts=None,details=''):

@@ -121,6 +121,7 @@ class MatrixCellWidget(QWidget):
     def set_value_by_code(self, code_str: str):
         """Khôi phục trạng thái ô từ mã code đã lưu."""
         if not code_str:
+            self.reset_to_default()
             return
         if not self.is_continuous:
             if not self.use_z:

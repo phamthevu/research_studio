@@ -330,6 +330,11 @@ class TabSurvey(QWidget):
             self.editing_respondent_id = respondent_id
             self.txt_expert_free.setText(row.get("full_name") or "")
         try:
+            # Always clear the previous expert before applying the selected response.
+            # Blank cells in the new response must stay blank, never inherit the
+            # value that happened to be visible for the previously opened expert.
+            for widget in self.cell_widgets.values():
+                widget.reset_to_default()
             payload = __import__("json").loads(row["response_json"])
             saved = payload.get("code_matrix", [])
             if self.config.use_z_number and payload.get("z_a_code_matrix") and payload.get("z_b_code_matrix"):

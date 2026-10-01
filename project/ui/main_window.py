@@ -14,6 +14,7 @@ from core.project_db import ProjectDB
 from ui.tab_config import TabConfig
 from ui.tab_survey import TabSurvey
 from ui.tab_data_manager import TabDataManager
+from ui.dialog_import_project import ImportProjectDialog
 from ui.tab_quant_config import TabQuantConfig
 from ui.tab_quant_survey import TabQuantSurvey
 from ui.tab_welcome import TabWelcome
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
         welcome = TabWelcome()
         welcome.new_requested.connect(self.new_project)
         welcome.open_requested.connect(self.open_project_dialog)
+        welcome.import_requested.connect(self.import_excel_as_project)
         self.tabs.addTab(welcome, "Home")
         self.tab_config = None
         self.tab_survey = None
@@ -126,6 +128,10 @@ class MainWindow(QMainWindow):
         self.action_open.setShortcut("Ctrl+O")
         self.action_open.triggered.connect(self.open_project_dialog)
         file_menu.addAction(self.action_open)
+
+        self.action_import_project = QAction("Import Excel as New Project...", self)
+        self.action_import_project.triggered.connect(self.import_excel_as_project)
+        file_menu.addAction(self.action_import_project)
 
         self.action_save = QAction("Save Project", self)
         self.action_save.setShortcut("Ctrl+S")
@@ -176,6 +182,11 @@ class MainWindow(QMainWindow):
         integrations_menu.addSeparator()
         aa=QAction("Activity Center...",self);aa.triggered.connect(lambda:ActivityDialog(self).exec());integrations_menu.addAction(aa)
         sc=QAction("System Check...",self);sc.triggered.connect(lambda:SystemCheckDialog(self).exec());integrations_menu.addAction(sc)
+
+    def import_excel_as_project(self):
+        dlg=ImportProjectDialog(self)
+        dlg.project_created.connect(lambda p: self.open_project(p))
+        dlg.exec()
 
     def show_auto_snapshot(self):
         AutoSnapshotDialog(self).exec()
@@ -427,11 +438,14 @@ class MainWindow(QMainWindow):
         self.tab_survey.refresh_respondents_from_db()
         self.tab_data.refresh()
 
-    def _edit_response_from_manager(self, respondent_id: str):
-        """Open an existing response in edit mode without re-authenticating the respondent."""
-        if not self.tab_survey:
+    def _edit_response_from_manager(self, response_id: int):
+        """Open the exact response row selected in Data Manager."""
+        if not self.tab_survey or not self.project_db:
             return
-        self.tab_survey.open_response_for_edit(respondent_id)
+        row = self.project_db.get_response_by_id(response_id)
+        if not row:
+            return
+        self.tab_survey.open_response_for_edit(row["respondent_id"])
         self.tabs.setCurrentWidget(self.tab_survey)
 
     # ------------------------------------------------------------------

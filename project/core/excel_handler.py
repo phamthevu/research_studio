@@ -62,6 +62,7 @@ def generate_default_template(output_path: str = "templates/Config_Template.xlsx
         df_scale_standard.to_excel(writer, sheet_name="Scale_Standard", index=False)
         df_scale_z_number.to_excel(writer, sheet_name="Scale_Z_Number", index=False)
         df_experts.to_excel(writer, sheet_name="Experts", index=False)
+        pd.DataFrame([{"Sheet":"Factors_Alternatives","Field_Name":x,"Role":"CONFIG"} for x in df_factors.columns]+[{"Sheet":"Scale_Standard","Field_Name":x,"Role":"CONFIG_SCALE"} for x in df_scale_standard.columns]+[{"Sheet":"Scale_Z_Number","Field_Name":x,"Role":"CONFIG_Z_SCALE"} for x in df_scale_z_number.columns]+[{"Sheet":"Experts","Field_Name":x,"Role":"ACCOUNT"} for x in df_experts.columns]).to_excel(writer,sheet_name="Schema",index=False)
         
     print(f"[OK] Đã tạo template mẫu thành công tại: {output_path}")
 
@@ -157,7 +158,9 @@ def export_all_experts_results(file_code_path: str, file_value_path: str,
                 "Username": data.get("username", ""),
                 "Source_Project_ID": data.get("source_project_id", ""),
                 "Source_Project": data.get("source_project_name", ""),
+                "Source_File": data.get("source_file", ""),
                 "Submitted_At": data.get("submitted_at", ""),
+                "Modified_At": data.get("modified_at", ""),
             })
         return pd.DataFrame(rows)
 
@@ -172,6 +175,7 @@ def export_all_experts_results(file_code_path: str, file_value_path: str,
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
             pd.DataFrame(meta_list).to_excel(writer, sheet_name="Metadata", index=False)
             build_lookup().to_excel(writer, sheet_name="Lookup", index=False)
+            pd.DataFrame([{"Field_Name":x,"Role":"MCDM_MATRIX","Data_Type":"TEXT","Required":True,"Description":"MCDM row/column/code vocabulary"} for x in ["Row_Code","Column_Code","A_Code"]+(["B_Code"] if config.use_z_number else [])]).to_excel(writer,sheet_name="Schema",index=False)
 
             # Deterministic ordering by answer number where available.
             items = list(all_experts_data.items())

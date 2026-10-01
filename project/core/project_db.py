@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 from integrations.storage_identity import new_storage_key
 
@@ -81,6 +81,7 @@ class ProjectDB:
         self.conn.execute("PRAGMA foreign_keys = ON")
         self._validate_schema()
         self._migrate_v6_identity()
+        self._migrate_v81_response_audit()
 
     def close(self):
         if self.conn:
@@ -125,6 +126,16 @@ class ProjectDB:
             key=new_storage_key(row["project_name"])
             self.conn.execute("UPDATE project_meta SET storage_key=?,db_table_prefix=?",(key,key))
         self.conn.execute("UPDATE project_meta SET schema_version=?",(SCHEMA_VERSION,))
+        self.conn.commit()
+
+    def _migrate_v81_response_audit(self):
+        """V8.1: preserve response creation time and track last modification."""
+        self._require_open()
+        cols={r[1] for r in self.conn.execute("PRAGMA table_info(responses)").fetchall()}
+        if "modified_at" not in cols:
+            self.conn.execute("ALTER TABLE responses ADD COLUMN modified_at TEXT")
+        if "submitted_at" in cols:
+            self.conn.execute("UPDATE responses SET modified_at=COALESCE(modified_at, submitted_at)")
         self.conn.commit()
 
     def update_storage_binding(self, **values):
@@ -207,6 +218,7 @@ class ProjectDB:
                     source_response_id TEXT,
                     source_file TEXT,
                     submitted_at TEXT,
+                    modified_at TEXT,
                     merged_at TEXT,
                     response_json TEXT NOT NULL,
                     FOREIGN KEY(respondent_id) REFERENCES respondents(respondent_id)
@@ -477,7 +489,7 @@ class ProjectDB:
             cur.execute(
                 """
                 UPDATE responses
-                SET response_json = ?, submitted_at = ?, source_file = ?,
+                SET response_json = ?, modified_at = ?, source_file = ?,
                     source_project_id = ?, source_project_name = ?
                 WHERE id = ?
                 """,
@@ -498,8 +510,8 @@ class ProjectDB:
                 """
                 INSERT INTO responses
                 (display_index, respondent_id, source_project_id, source_project_name,
-                 source_response_id, source_file, submitted_at, merged_at, response_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
+                 source_response_id, source_file, submitted_at, modified_at, merged_at, response_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
                 """,
                 (
                     next_idx,
@@ -508,6 +520,7 @@ class ProjectDB:
                     source_project_name,
                     None,
                     source_file,
+                    now,
                     now,
                     data_str,
                 ),
@@ -546,7 +559,7 @@ class ProjectDB:
                    res.full_name, res.username, res.organization,
                    r.source_project_id, r.source_project_name,
                    r.source_response_id, r.source_file,
-                   r.submitted_at, r.merged_at, r.response_json
+                   r.submitted_at, r.modified_at, r.merged_at, r.response_json
             FROM responses r
             LEFT JOIN respondents res ON r.respondent_id = res.respondent_id
             ORDER BY r.display_index ASC
@@ -559,6 +572,15 @@ class ProjectDB:
         row = self.conn.execute(
             "SELECT * FROM responses WHERE respondent_id = ? ORDER BY id LIMIT 1",
             (respondent_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_response_by_id(self, response_id: int) -> Optional[Dict[str, Any]]:
+        """Return the exact saved response selected in Data Manager."""
+        self._require_open()
+        row = self.conn.execute(
+            "SELECT * FROM responses WHERE id = ?",
+            (int(response_id),),
         ).fetchone()
         return dict(row) if row else None
 
@@ -763,8 +785,8 @@ class ProjectDB:
                         """
                         INSERT INTO responses
                         (display_index, respondent_id, source_project_id, source_project_name,
-                         source_response_id, source_file, submitted_at, merged_at, response_json)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         source_response_id, source_file, submitted_at, modified_at, merged_at, response_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             next_idx,
@@ -773,6 +795,7 @@ class ProjectDB:
                             src_meta["project_name"],
                             source_response_id,
                             source_file,
+                            response["submitted_at"],
                             response["submitted_at"],
                             now,
                             response["response_json"],
